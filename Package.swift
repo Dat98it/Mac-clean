@@ -13,6 +13,8 @@ let package = Package(
         .target(name: "MacCleanSystem", dependencies: ["MacCleanCore"], path: "Sources/MacCleanSystem"),
         // The app: a thin layer that wires Core and System to AppKit.
         .executableTarget(name: "MacClean", dependencies: ["MacCleanCore", "MacCleanSystem"], path: "Sources/MacClean"),
+        // Read-only command line tool for spikes and diagnosis. Has no code that removes anything.
+        .executableTarget(name: "macclean-probe", dependencies: ["MacCleanCore", "MacCleanSystem"], path: "Sources/macclean-probe"),
         .testTarget(name: "MacCleanCoreTests", dependencies: ["MacCleanCore"], path: "Tests/MacCleanCoreTests"),
     ],
     swiftLanguageVersions: [.v5]
