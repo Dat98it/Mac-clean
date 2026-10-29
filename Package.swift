@@ -9,6 +9,8 @@ let package = Package(
         // Foundation only, and no direct file I/O: reading goes through `FileSystem` and
         // `DirectoryReading`, changes through `Trashing`, `PermanentRemoving`, `AdminActing`.
         .target(name: "MacCleanCore", path: "Sources/MacCleanCore"),
+        // The real machine: getattrlistbulk, lstat, mounted volumes, the Trash, the password dialog.
+        .target(name: "MacCleanSystem", dependencies: ["MacCleanCore"], path: "Sources/MacCleanSystem"),
         .testTarget(name: "MacCleanCoreTests", dependencies: ["MacCleanCore"], path: "Tests/MacCleanCoreTests"),
     ],
     swiftLanguageVersions: [.v5]
