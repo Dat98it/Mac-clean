@@ -11,6 +11,8 @@ let package = Package(
         .target(name: "MacCleanCore", path: "Sources/MacCleanCore"),
         // The real machine: getattrlistbulk, lstat, mounted volumes, the Trash, the password dialog.
         .target(name: "MacCleanSystem", dependencies: ["MacCleanCore"], path: "Sources/MacCleanSystem"),
+        // The app: a thin layer that wires Core and System to AppKit.
+        .executableTarget(name: "MacClean", dependencies: ["MacCleanCore", "MacCleanSystem"], path: "Sources/MacClean"),
         .testTarget(name: "MacCleanCoreTests", dependencies: ["MacCleanCore"], path: "Tests/MacCleanCoreTests"),
     ],
     swiftLanguageVersions: [.v5]

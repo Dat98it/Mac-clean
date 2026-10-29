@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>local.macclean.app</string>
+    <key>CFBundleName</key>
+    <string>Mac Clean</string>
+    <key>CFBundleDisplayName</key>
+    <string>Mac Clean</string>
+    <key>CFBundleExecutable</key>
+    <string>MacClean</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>vi</string>
+    </array>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Mac Clean asks macOS for an administrator password only to move items you selected that belong to the system.</string>
+    <key>NSRemovableVolumesUsageDescription</key>
+    <string>Mac Clean lists the files on external disks so you can see what takes up space. It reads names and sizes only.</string>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>Mac Clean lists the files in Desktop so you can see what takes up space. It reads names and sizes only.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Mac Clean lists the files in Documents so you can see what takes up space. It reads names and sizes only.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>Mac Clean lists the files in Downloads so you can see what takes up space. It reads names and sizes only.</string>
+</dict>
+</plist>
