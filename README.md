@@ -105,7 +105,7 @@ Scripts/test.sh                       # swift test, tự chạy lại khi gặp 
 python3 -I Scripts/mutate.py          # phá từng chốt an toàn (51 đột biến), mọi đột biến phải bị test bắt
 Scripts/build_app.sh                  # build/Mac Clean.app, ký ad-hoc
 Scripts/make_dmg.sh                   # bản universal, build/MacClean-<phiên bản>.dmg và .sha256
-swift Scripts/make_icon.swift         # vẽ lại Resources/AppIcon.icns
+swift Scripts/make_icon.swift         # tạo lại Resources/AppIcon.icns từ ảnh gốc Resources/AppIcon-source.png
 ```
 
 ### Thử an toàn trên dữ liệu giả: `--sandbox`

@@ -23,7 +23,7 @@ Scripts/test.sh                        # swift test, tự chạy lại khi gặp
 python3 -I Scripts/mutate.py [tên]     # phá từng chốt an toàn; mọi đột biến phải bị bắt (KILLED)
 Scripts/build_app.sh [release|debug] [universal]
 Scripts/make_dmg.sh                    # build universal, build/MacClean-<version>.dmg và .sha256
-swift Scripts/make_icon.swift          # vẽ lại Resources/AppIcon.icns
+swift Scripts/make_icon.swift          # Resources/AppIcon.icns từ ảnh gốc Resources/AppIcon-source.png
 .build/release/macclean-probe scan /   # quét như app trên máy thật (chỉ đọc)
 "build/Mac Clean.app/Contents/MacOS/MacClean" --sandbox <thư mục>
 ```
@@ -59,6 +59,7 @@ swift Scripts/make_icon.swift          # vẽ lại Resources/AppIcon.icns
 - **Tìm kiếm trên 1,8 triệu tên mất khoảng 3 giây**, nên chạy ở luồng nền. Trong lúc đó không được thay đổi cây: `AppModel.isSearching` chặn quét lại và chuyển vào Thùng rác.
 - **Chạy app làm thay đổi môi trường của người dùng:** `--sandbox` không ghi `~/Library/Preferences` (cài đặt nằm trong sandbox, không autosave cửa sổ), nhưng macOS vẫn ghi saved state vào thư mục tạm `/var/folders/.../T/`. App chạy thật thì ghi `~/Library/Preferences/local.macclean.app.plist`.
 - **Kiểm thử giao diện bằng System Events cướp focus và bấm vào thanh menu của người dùng.** Chỉ làm khi cần, ngắn gọn. Chụp màn hình thì chỉ chụp cửa sổ của app (`screencapture -l <window id>`), không bao giờ chụp cả màn hình: ảnh sẽ dính nội dung riêng tư của người dùng.
+- **App icon là ảnh do người dùng chọn** (tạo bằng ChatGPT), lưu ở `Resources/AppIcon-source.png`. Đừng vẽ lại bằng code. `Scripts/make_icon.swift` tìm thân icon theo kênh alpha và đưa về lưới macOS (thân 824/1024, căn giữa). Muốn đổi icon thì thay ảnh gốc (nền trong suốt) rồi chạy lại script.
 - **Không có file dataless (iCloud) thật trên máy phát triển.** Việc không kích hoạt tải về mới được đảm bảo bằng `setiopolicy_np` và việc không mở file, chưa thử trên dữ liệu thật.
 
 ## Git và phát hành
