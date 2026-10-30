@@ -28,9 +28,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MainMenu.make(target: self)
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "internaldrive", accessibilityDescription: "Mac Clean")
-        statusItem.button?.image?.isTemplate = true
+        // The glyph (a drive being swept) is a bit wider than tall, so the item takes the glyph's width.
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.button?.image = Self.menuBarGlyph()
         statusItem.button?.toolTip = "Mac Clean"
         let menu = NSMenu()
         menu.delegate = self
@@ -61,6 +61,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let atLogin = event?.eventID == kAEOpenApplication
             && event?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
         if !atLogin || CommandLine.arguments.contains("--show") { showWindow() }
+    }
+
+    /// Resources/MenuBarIcon.png and @2x (made by Scripts/make_menubar_icon.swift), as a template
+    /// so macOS tints it for light and dark menu bars. Outside an app bundle (swift run), a system symbol.
+    static func menuBarGlyph() -> NSImage? {
+        let image = Bundle.main.image(forResource: "MenuBarIcon")
+            ?? NSImage(systemSymbolName: "internaldrive", accessibilityDescription: nil)
+        image?.isTemplate = true
+        image?.accessibilityDescription = "Mac Clean"
+        return image
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }

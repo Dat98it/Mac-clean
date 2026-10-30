@@ -24,6 +24,7 @@ python3 -I Scripts/mutate.py [tên]     # phá từng chốt an toàn; mọi đ�
 Scripts/build_app.sh [release|debug] [universal]
 Scripts/make_dmg.sh                    # build universal, build/MacClean-<version>.dmg và .sha256
 swift Scripts/make_icon.swift          # Resources/AppIcon.icns từ ảnh gốc Resources/AppIcon-source.png
+swift Scripts/make_menubar_icon.swift  # Resources/MenuBarIcon.png và @2x từ Resources/MenuBarIcon-source.png
 .build/release/macclean-probe scan /   # quét như app trên máy thật (chỉ đọc)
 "build/Mac Clean.app/Contents/MacOS/MacClean" --sandbox <thư mục>
 ```
@@ -60,6 +61,7 @@ swift Scripts/make_icon.swift          # Resources/AppIcon.icns từ ảnh gốc
 - **Chạy app làm thay đổi môi trường của người dùng:** `--sandbox` không ghi `~/Library/Preferences` (cài đặt nằm trong sandbox, không autosave cửa sổ), nhưng macOS vẫn ghi saved state vào thư mục tạm `/var/folders/.../T/`. App chạy thật thì ghi `~/Library/Preferences/local.macclean.app.plist`.
 - **Kiểm thử giao diện bằng System Events cướp focus và bấm vào thanh menu của người dùng.** Chỉ làm khi cần, ngắn gọn. Chụp màn hình thì chỉ chụp cửa sổ của app (`screencapture -l <window id>`), không bao giờ chụp cả màn hình: ảnh sẽ dính nội dung riêng tư của người dùng.
 - **App icon là ảnh do người dùng chọn** (tạo bằng ChatGPT), lưu ở `Resources/AppIcon-source.png`. Đừng vẽ lại bằng code. `Scripts/make_icon.swift` tìm thân icon theo kênh alpha và đưa về lưới macOS (thân 824/1024, căn giữa). Muốn đổi icon thì thay ảnh gốc (nền trong suốt) rồi chạy lại script.
+- **Glyph thanh menu** (ổ đĩa, chổi, ngôi sao) cũng là ảnh người dùng chọn. Ảnh gốc từ ChatGPT **không có kênh alpha**: nền ô cờ được vẽ thẳng vào ảnh. `Scripts/make_menubar_icon.swift` lấy glyph theo độ tối (đen thành đục, xám nhạt thành trong suốt), rồi xuất glyph cao 16 pt trong ảnh 18 pt, 1x và 2x. App nạp nó làm template image; chạy ngoài bundle (`swift run`) thì dùng SF Symbol `internaldrive`. Không có cửa sổ riêng cho status item: muốn chụp thì lấy vị trí qua Accessibility (`menu bar item 1 of menu bar 2`) rồi `screencapture -R` đúng vùng đó.
 - **Không có file dataless (iCloud) thật trên máy phát triển.** Việc không kích hoạt tải về mới được đảm bảo bằng `setiopolicy_np` và việc không mở file, chưa thử trên dữ liệu thật.
 
 ## Git và phát hành

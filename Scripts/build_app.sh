@@ -23,6 +23,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/MacClean"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 [[ -f Resources/AppIcon.icns ]] && cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# The menu bar glyph (template image, 1x and 2x). The *-source.png artwork stays out of the app.
+cp Resources/MenuBarIcon.png Resources/MenuBarIcon@2x.png "$APP/Contents/Resources/"
 cp -R Resources/en.lproj Resources/vi.lproj "$APP/Contents/Resources/"
 
 # Ad-hoc signature: enough to run on the machine that built it.

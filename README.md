@@ -106,6 +106,7 @@ python3 -I Scripts/mutate.py          # phá từng chốt an toàn (51 đột b
 Scripts/build_app.sh                  # build/Mac Clean.app, ký ad-hoc
 Scripts/make_dmg.sh                   # bản universal, build/MacClean-<phiên bản>.dmg và .sha256
 swift Scripts/make_icon.swift         # tạo lại Resources/AppIcon.icns từ ảnh gốc Resources/AppIcon-source.png
+swift Scripts/make_menubar_icon.swift # tạo lại glyph thanh menu từ ảnh gốc Resources/MenuBarIcon-source.png
 ```
 
 ### Thử an toàn trên dữ liệu giả: `--sandbox`
