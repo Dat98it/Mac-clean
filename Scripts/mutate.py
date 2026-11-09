@@ -109,7 +109,7 @@ def run_tests(attempts=2):
     # A run that ends without a test report (a build error, or the toolchain's TestingMacros quirk
     # outlasting Scripts/test.sh's retries) is tried once more before it counts as BUILD-FAILED.
     for _ in range(attempts):
-        result = subprocess.run([os.path.join(ROOT, "Scripts/test.sh")], cwd=ROOT, capture_output=True, text=True)
+        result = subprocess.run([os.path.join(ROOT, "Scripts/test.sh"), "--filter", "MacCleanCoreTests"], cwd=ROOT, capture_output=True, text=True)
         output = result.stdout + result.stderr
         if "Test run" in output:
             return "KILLED" if result.returncode != 0 else "SURVIVED"

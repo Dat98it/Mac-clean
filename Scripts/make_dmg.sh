@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Build a universal Mac Clean.app and wrap it in a drag-to-Applications disk image.
+# Build Mac Clean.app (Apple Silicon) and wrap it in a drag-to-Applications disk image.
 # Adapted from App Clean's Scripts/make_dmg.sh; the staging folder stays inside build/.
 # Usage: Scripts/make_dmg.sh        ->  build/MacClean-<version>.dmg (and its .sha256)
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-Scripts/build_app.sh release universal
+Scripts/build_app.sh release
 
 APP="build/Mac Clean.app"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)"
