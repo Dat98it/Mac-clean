@@ -24,7 +24,7 @@ public struct MacCleanEnvironment: Sendable {
     public let supportFolder: String
     public let selfBundlePath: String?
 
-    public static let bundleID = "local.macclean.app"
+    public static let bundleID = "com.dat98it.MacClean"
 
     public static func live(selfBundlePath: String?) -> MacCleanEnvironment {
         let home = FileManager.default.homeDirectoryForCurrentUser.path

@@ -2,6 +2,7 @@ import AppKit
 import MacCleanCore
 import MacCleanSystem
 import SwiftUI
+import UninstallSystem
 
 /// The menu bar icon and its menu, the Dock icon setting, the main menu, and the windows.
 ///
@@ -10,8 +11,11 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let env: MacCleanEnvironment
+    let uninstallEnv: CleanerEnvironment
     let prefs: Preferences
     let model: AppModel
+    let uninstall: UninstallModel
+    let navigation = Navigation()
     let launchAtLogin = LaunchAtLogin(service: SystemLoginItemService())
     private var statusItem: NSStatusItem!
     private var windowController: MainWindowController?
@@ -19,11 +23,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var suggestionsWindow: NSWindow?
     private lazy var settingsModel = SettingsModel(delegate: self)
 
-    init(env: MacCleanEnvironment, prefs: Preferences) {
+    init(env: MacCleanEnvironment, uninstallEnv: CleanerEnvironment, prefs: Preferences) {
         self.env = env
+        self.uninstallEnv = uninstallEnv
         self.prefs = prefs
         model = AppModel(env: env, prefs: prefs)
+        uninstall = UninstallModel(env: uninstallEnv)
         super.init()
+        navigation.onSuggestions = { [weak self] in self?.showSuggestions() }
+        navigation.onSettings = { [weak self] in self?.showSettings() }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -32,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.image = Self.menuBarGlyph()
         statusItem.button?.toolTip = "Mac Clean"
+        installStatusDropTarget()
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
@@ -53,14 +62,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.model.refreshPermissions() }
+            MainActor.assumeIsolated {
+                self?.model.refreshPermissions()
+                self?.uninstall.refreshPermissions()
+            }
+        }
+
+        // Esc in the uninstall page goes back to the drop box. Handled here rather than with a SwiftUI
+        // shortcut, which the list swallows once it has focus. Never while a sheet or alert is up.
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, event.keyCode == 53, let window = self.windowController?.window, event.window === window,
+                  window.attachedSheet == nil, self.navigation.page == .uninstall, self.uninstall.target != nil,
+                  self.uninstall.confirmation == nil else { return event }
+            self.uninstall.clearTarget()
+            return nil
         }
 
         // Opened at login: stay in the menu bar. Otherwise show the window.
         let event = NSAppleEventManager.shared().currentAppleEvent
         let atLogin = event?.eventID == kAEOpenApplication
             && event?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
-        if !atLogin || CommandLine.arguments.contains("--show") { showWindow() }
+        let args = CommandLine.arguments
+        if !atLogin || args.contains("--show") { showWindow() }
+        // Handy for trying the uninstaller on a sandbox: `--open <App.app>` and `--leftovers`.
+        if let i = args.firstIndex(of: "--open"), i + 1 < args.count { openApp(URL(fileURLWithPath: args[i + 1])) }
+        if args.contains("--leftovers") { openLeftovers() }
+        // `--page disk|uninstall|leftovers` opens that page (for screenshots and checks).
+        if let i = args.firstIndex(of: "--page"), i + 1 < args.count, let page = Page.named(args[i + 1]) { showPage(page) }
     }
 
     /// Resources/MenuBarIcon.png and @2x (made by Scripts/make_menubar_icon.swift), as a template
@@ -85,7 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func showWindow() {
         if windowController == nil {
-            let controller = MainWindowController(model: model)
+            let controller = MainWindowController(model: model, navigation: navigation, uninstall: uninstall)
             controller.onOpenSuggestions = { [weak self] in self?.showSuggestions() }
             controller.onOpenSettings = { [weak self] in self?.showSettings() }
             windowController = controller
@@ -95,9 +123,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         windowController?.scanIfNeeded()
     }
 
-    @objc func rescan() {
+    /// Shows the window on the given page.
+    func showPage(_ page: Page) {
         showWindow()
+        navigation.page = page
+    }
+
+    @objc func showDiskExplorer() { showPage(.disk) }
+    @objc func showUninstall() { showPage(.uninstall) }
+    @objc func showLeftovers() { showPage(.leftovers) }
+
+    /// A dropped or chosen app: straight to the uninstall page.
+    func openApp(_ url: URL) {
+        showPage(.uninstall)
+        uninstall.open(url)
+    }
+
+    /// From the menu: the leftovers page, scanning right away.
+    @objc func openLeftovers() {
+        showPage(.leftovers)
+        if uninstall.orphans == nil && !uninstall.orphanScanning { uninstall.scanLeftovers() }
+    }
+
+    /// Scan Again (Cmd+R) means what the page in front means: the leftovers scan, the app being
+    /// removed, or the selected disk.
+    @objc func rescan() {
+        if windowController?.window?.isVisible == true {
+            switch navigation.page {
+            case .leftovers:
+                uninstall.scanLeftovers()
+                return
+            case .uninstall:
+                if let target = uninstall.target { uninstall.open(URL(fileURLWithPath: target.path)) }
+                return
+            case .disk:
+                break
+            }
+        }
+        showPage(.disk)
         if let volume = model.selectedVolume, model.volumes.contains(where: { $0.id == volume.id }) { model.scan(volume) }
+    }
+
+    /// A transparent view over the status item's button that takes dropped `.app` bundles.
+    private func installStatusDropTarget() {
+        guard let button = statusItem.button else { return }
+        let drop = StatusDropView { [weak self] url in self?.openApp(url) } onEnter: { [weak self] in
+            // A drag reached the icon: open the uninstall page too, so its drop box is there as well.
+            self?.showPage(.uninstall)
+        }
+        drop.frame = button.bounds
+        drop.autoresizingMask = [.width, .height]
+        button.addSubview(drop)
     }
 
     // MARK: Dock icon
@@ -159,6 +235,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                   action: model.anyScanning ? #selector(stopScanning) : #selector(rescan), keyEquivalent: "")
         rescan.target = self
         menu.addItem(.separator())
+        menu.addItem(withTitle: L("Uninstall an App…"), action: #selector(showUninstall), keyEquivalent: "").target = self
+        menu.addItem(withTitle: L("Find Leftovers…"), action: #selector(openLeftovers), keyEquivalent: "").target = self
+        menu.addItem(withTitle: L("Cleanup Suggestions…"), action: #selector(openSuggestionsFromMenu), keyEquivalent: "").target = self
+        menu.addItem(.separator())
         let dock = menu.addItem(withTitle: L("Show Icon in Dock"), action: #selector(toggleDockIcon), keyEquivalent: "")
         dock.target = self
         dock.state = prefs.showDockIcon ? .on : .off
@@ -167,6 +247,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         login.state = launchAtLogin.menuState
         menu.addItem(withTitle: L("Settings…"), action: #selector(showSettings), keyEquivalent: ",").target = self
         menu.addItem(withTitle: L("Show Action Log"), action: #selector(showLog), keyEquivalent: "").target = self
+        menu.addItem(withTitle: L("Uninstall Mac Clean…"), action: #selector(uninstallSelf), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: L("Quit Mac Clean"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     }
@@ -193,6 +274,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             alert.runModal()
         }
         settingsModel.objectWillChange.send()
+    }
+
+    @objc func openSuggestionsFromMenu() {
+        showWindow()
+        showSuggestions()
+    }
+
+    @objc func uninstallSelf() {
+        let uninstaller = SelfUninstaller(loginItem: SystemLoginItemService(), supportFolder: uninstallEnv.supportFolder)
+        if case .unavailable(let reason) = uninstaller.availability {
+            alert(L("Mac Clean can't remove itself from here"), reason)
+            return
+        }
+        let confirmation = NSAlert()
+        confirmation.messageText = L("Uninstall Mac Clean?")
+        confirmation.informativeText = uninstaller.confirmationText
+        confirmation.addButton(withTitle: L("Uninstall"))
+        confirmation.addButton(withTitle: L("Cancel"))
+        NSApp.activate(ignoringOtherApps: true)
+        guard confirmation.runModal() == .alertFirstButtonReturn else { return }
+        switch uninstaller.uninstall() {
+        case .removed(let warnings):
+            if !warnings.isEmpty { alert(L("Mac Clean was moved to the Trash"), warnings.joined(separator: "\n")) }
+            NSApp.terminate(nil)
+        case .failed(let reason):
+            alert(L("Mac Clean was not removed"), reason)
+        }
+    }
+
+    func alert(_ title: String, _ text: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = text
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     @objc func showLog() {
@@ -251,7 +367,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         model.onStateChanged?()
         model.onTreeChanged?([])
-        showWindow()
+        showPage(.disk)
         if !refused.isEmpty {
             let alert = NSAlert()
             alert.messageText = L("Some suggested items cannot be moved")
@@ -333,6 +449,20 @@ enum MainMenu {
         edit.addItem(withTitle: L("Select All"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editItem.submenu = edit
 
+        let goItem = main.addItem(withTitle: L("Go"), action: nil, keyEquivalent: "")
+        let go = NSMenu(title: L("Go"))
+        for (page, selector, key) in [(Page.disk, #selector(AppDelegate.showDiskExplorer), "1"),
+                                      (Page.uninstall, #selector(AppDelegate.showUninstall), "2"),
+                                      (Page.leftovers, #selector(AppDelegate.showLeftovers), "3")] {
+            let item = go.addItem(withTitle: page.title, action: selector, keyEquivalent: key)
+            item.target = target
+            item.image = NSImage(systemSymbolName: page.symbol, accessibilityDescription: nil)
+        }
+        go.addItem(.separator())
+        let sidebar = go.addItem(withTitle: L("Toggle Sidebar"), action: #selector(NSSplitViewController.toggleSidebar(_:)), keyEquivalent: "s")
+        sidebar.keyEquivalentModifierMask = [.command, .option]
+        goItem.submenu = go
+
         let windowItem = main.addItem(withTitle: L("Window"), action: nil, keyEquivalent: "")
         let window = NSMenu(title: L("Window"))
         window.addItem(withTitle: L("Minimize"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
@@ -342,5 +472,44 @@ enum MainMenu {
         windowItem.submenu = window
         NSApp.windowsMenu = window
         return main
+    }
+}
+
+
+/// Transparent view over the status item's button. Accepts only drags of `.app` bundles.
+/// Clicks pass through (`hitTest` returns nil) so the button's menu still opens.
+final class StatusDropView: NSView {
+    let onDrop: (URL) -> Void
+    let onEnter: () -> Void
+
+    init(onDrop: @escaping (URL) -> Void, onEnter: @escaping () -> Void) {
+        self.onDrop = onDrop
+        self.onEnter = onEnter
+        super.init(frame: .zero)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    static func apps(_ info: NSDraggingInfo) -> [URL] {
+        let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+        return urls.count == 1 && urls[0].pathExtension == "app" ? urls : []
+    }
+
+    override func draggingEntered(_ info: NSDraggingInfo) -> NSDragOperation {
+        guard !Self.apps(info).isEmpty else { return [] }
+        onEnter()
+        return .copy
+    }
+
+    override func draggingUpdated(_ info: NSDraggingInfo) -> NSDragOperation { Self.apps(info).isEmpty ? [] : .copy }
+    override func prepareForDragOperation(_ info: NSDraggingInfo) -> Bool { !Self.apps(info).isEmpty }
+
+    override func performDragOperation(_ info: NSDraggingInfo) -> Bool {
+        guard let url = Self.apps(info).first else { return false }
+        onDrop(url)
+        return true
     }
 }

@@ -1,7 +1,9 @@
 import AppKit
+import Combine
 import MacCleanCore
 import MacCleanSystem
 import Quartz
+import SwiftUI
 import UniformTypeIdentifiers
 
 /// One row of the outline. NSOutlineView needs objects with a stable identity; one per node shown.
@@ -16,8 +18,15 @@ final class NodeItem: NSObject {
 final class MainWindowController: NSWindowController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSWindowDelegate,
     NSSearchFieldDelegate, QLPreviewPanelDataSource, QLPreviewPanelDelegate, NSMenuDelegate {
     let model: AppModel
+    let navigation: Navigation
+    let uninstall: UninstallModel
     var onOpenSuggestions: (() -> Void)?
     var onOpenSettings: (() -> Void)?
+
+    /// The explorer's own content; the window's frame (sidebar, page switching) is `ShellViewController`.
+    private let explorerView = NSView()
+    private var shell: ShellViewController?
+    private var pageSubscription: AnyCancellable?
 
     private let volumePopup = NSPopUpButton()
     private let scanButton = NSButton()
@@ -52,31 +61,54 @@ final class MainWindowController: NSWindowController, NSOutlineViewDataSource, N
     static let sizeSteps: [UInt64] = [0, 1_000_000, 10_000_000, 100_000_000, 1_000_000_000]
     static let ageSteps: [Int?] = [nil, 30, 90, 365, 730]
 
-    init(model: AppModel) {
+    init(model: AppModel, navigation: Navigation, uninstall: UninstallModel) {
         self.model = model
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 980, height: 680),
+        self.navigation = navigation
+        self.uninstall = uninstall
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 720),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = model.env.isSandbox ? "Mac Clean (sandbox)" : "Mac Clean"
+        window.subtitle = Page.disk.title
         window.isReleasedWhenClosed = false
-        window.contentMinSize = NSSize(width: 720, height: 420)
+        window.contentMinSize = NSSize(width: 960, height: 540)
         super.init(window: window)
         window.delegate = self
-        buildInterface()
+        buildInterface(into: explorerView)
+        let host = NSHostingView(rootView: UninstallRootView(model: uninstall))
+        // The page decides its size from the window, never the other way round.
+        host.sizingOptions = []
+        let shell = ShellViewController(navigation: navigation, explorer: explorerView, uninstall: host)
+        self.shell = shell
+        shell.container.onLayout = { [weak self] in self?.fillNameColumn() }
+        window.contentViewController = shell
+        window.setContentSize(NSSize(width: 1100, height: 720))
         window.center()
         window.isRestorable = false
         // Sandbox runs write nothing outside the sandbox folder, so they remember no window frames.
         if !model.env.isSandbox { window.setFrameAutosaveName("MainWindow") }
         model.onTreeChanged = { [weak self] touched in self?.treeChanged(touched) }
         model.onStateChanged = { [weak self] in self?.stateChanged() }
+        pageSubscription = navigation.$page.removeDuplicates().sink { [weak self] page in
+            MainActor.assumeIsolated { self?.pageChanged(page) }
+        }
         stateChanged()
+    }
+
+    /// The sidebar picked a page: show it, say so in the title bar, and give the uninstaller its mode.
+    private func pageChanged(_ page: Page) {
+        shell?.container.show(page)
+        window?.subtitle = page.title
+        guard page != .disk else { return }
+        uninstall.mode = page == .leftovers ? .leftovers : .uninstall
+        // The first visit to the leftovers page starts the scan: it only reads ~/Library.
+        if page == .leftovers, uninstall.orphans == nil, !uninstall.orphanScanning { uninstall.scanLeftovers() }
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
     // MARK: Building
 
-    private func buildInterface() {
-        guard let content = window?.contentView else { return }
+    private func buildInterface(into content: NSView) {
 
         volumePopup.target = self
         volumePopup.action = #selector(volumeChosen)
@@ -88,8 +120,24 @@ final class MainWindowController: NSWindowController, NSOutlineViewDataSource, N
         spinner.isDisplayedWhenStopped = false
         statusLabel.lineBreakMode = .byTruncatingTail
         statusLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let topRow = NSStackView(views: [volumePopup, scanButton, spinner, statusLabel])
-        topRow.spacing = 8
+        // The same header every page has: an icon tile, the page's name, what it shows, and its controls.
+        statusLabel.textColor = .secondaryLabelColor
+        statusLabel.font = .systemFont(ofSize: NSFont.systemFontSize)
+        let tile = Self.iconTile(symbol: "internaldrive.fill")
+        let titleLabel = NSTextField(labelWithString: Page.disk.title)
+        titleLabel.font = .systemFont(ofSize: 22, weight: .semibold)
+        let titleStack = NSStackView(views: [titleLabel, statusLabel])
+        titleStack.orientation = .vertical
+        titleStack.alignment = .leading
+        titleStack.spacing = 2
+        let headerSpacer = NSView()
+        headerSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let topRow = NSStackView(views: [tile, titleStack, headerSpacer, spinner, volumePopup, scanButton])
+        topRow.spacing = 10
+        topRow.alignment = .centerY
+        topRow.setCustomSpacing(14, after: tile)
+        let separator = NSBox()
+        separator.boxType = .separator
 
         searchField.placeholderString = L("Filter by name")
         searchField.delegate = self
@@ -140,6 +188,12 @@ final class MainWindowController: NSWindowController, NSOutlineViewDataSource, N
         scroll.hasVerticalScroller = true
         scroll.hasHorizontalScroller = true
         scroll.autohidesScrollers = true
+        // Whenever the visible width changes (also the first time it is laid out), the name column takes
+        // the room the other columns leave: the table always fills the window.
+        scroll.contentView.postsFrameChangedNotifications = true
+        NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: scroll.contentView, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.fillNameColumn() }
+        }
 
         selectionLabel.textColor = .secondaryLabelColor
         untickButton.title = L("Untick All")
@@ -151,7 +205,10 @@ final class MainWindowController: NSWindowController, NSOutlineViewDataSource, N
         suggestionsButton.target = self
         suggestionsButton.action = #selector(openSuggestions)
         trashButton.title = L("Move to Trash…")
+        trashButton.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
+        trashButton.imagePosition = .imageLeading
         trashButton.bezelStyle = .rounded
+        trashButton.bezelColor = .controlAccentColor
         trashButton.keyEquivalent = ""
         trashButton.target = self
         trashButton.action = #selector(moveToTrash)
@@ -160,11 +217,11 @@ final class MainWindowController: NSWindowController, NSOutlineViewDataSource, N
         let bottomRow = NSStackView(views: [selectionLabel, untickButton, spacer, suggestionsButton, trashButton])
         bottomRow.spacing = 8
 
-        let stack = NSStackView(views: [topRow, filterRow, accessBanner, summaryRow, noticeLabel, scroll, bottomRow])
+        let stack = NSStackView(views: [topRow, separator, filterRow, accessBanner, summaryRow, noticeLabel, scroll, bottomRow])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8
-        stack.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+        stack.edgeInsets = NSEdgeInsets(top: 14, left: 20, bottom: 14, right: 20)
         stack.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -173,39 +230,77 @@ final class MainWindowController: NSWindowController, NSOutlineViewDataSource, N
             stack.topAnchor.constraint(equalTo: content.topAnchor),
             stack.bottomAnchor.constraint(equalTo: content.bottomAnchor),
         ])
-        for row in [topRow, filterRow, accessBanner, summaryRow, noticeLabel, scroll, bottomRow] {
-            row.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24).isActive = true
+        for row in [topRow, separator, filterRow, accessBanner, summaryRow, noticeLabel, scroll, bottomRow] {
+            row.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
         }
         scroll.setContentHuggingPriority(.defaultLow, for: .vertical)
         scroll.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
     }
 
+    /// The name column takes all the width the other columns leave. The inset table style keeps about
+    /// 11 points free on each side.
+    private func fillNameColumn() {
+        guard let scroll = outline.enclosingScrollView, let name = outline.tableColumns.first else { return }
+        let available = scroll.contentSize.width
+        guard available > 0 else { return }
+        let columns = outline.tableColumns
+        let others = columns.dropFirst().reduce(CGFloat(0)) { $0 + $1.width }
+        let spacing = outline.intercellSpacing.width * CGFloat(columns.count)
+        let target = max(name.minWidth, available - others - spacing - 22)
+        if abs(name.width - target) > 0.5 { name.width = target }
+    }
+
+    /// A rounded accent square with a white symbol: the mark every page header starts with.
+    static func iconTile(symbol: String) -> NSView {
+        let tile = NSView()
+        tile.wantsLayer = true
+        tile.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
+        tile.layer?.cornerRadius = 11
+        tile.layer?.cornerCurve = .continuous
+        let image = NSImageView(image: NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+            ?? NSImage())
+        image.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
+        image.contentTintColor = .white
+        image.translatesAutoresizingMaskIntoConstraints = false
+        tile.addSubview(image)
+        tile.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            tile.widthAnchor.constraint(equalToConstant: 42),
+            tile.heightAnchor.constraint(equalToConstant: 42),
+            image.centerXAnchor.constraint(equalTo: tile.centerXAnchor),
+            image.centerYAnchor.constraint(equalTo: tile.centerYAnchor),
+        ])
+        return tile
+    }
+
     private func buildOutline() {
         let columns: [(String, String, CGFloat, SortColumn)] = [
-            ("name", L("Name"), 380, .name), ("size", L("Size"), 100, .size), ("created", L("Date Created"), 150, .created),
-            ("modified", L("Date Modified"), 150, .modified), ("kind", L("Kind"), 140, .kind),
+            ("name", L("Name"), 360, .name), ("size", L("Size"), 90, .size), ("created", L("Date Created"), 125, .created),
+            ("modified", L("Date Modified"), 125, .modified), ("kind", L("Kind"), 90, .kind),
         ]
         for (id, title, width, sort) in columns {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
             column.title = title
             column.width = width
-            column.minWidth = id == "name" ? 220 : 60
+            column.minWidth = id == "name" ? 200 : 60
             column.sortDescriptorPrototype = NSSortDescriptor(key: sort.rawValue, ascending: sort == .name || sort == .kind)
             if id == "size" { column.headerCell.alignment = .right }
             outline.addTableColumn(column)
             if id == "name" { outline.outlineTableColumn = column }
         }
-        // Only the last column follows the window width; the name column keeps its room.
-        outline.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
+        // Column widths are set by `fillNameColumn`: AppKit's own autoresizing squeezes every column
+        // when the table is first laid out narrower than the window.
+        outline.columnAutoresizingStyle = .noColumnAutoresizing
         outline.dataSource = self
         outline.delegate = self
-        outline.usesAlternatingRowBackgroundColors = true
+        outline.usesAlternatingRowBackgroundColors = false
+        outline.style = .inset
         outline.allowsMultipleSelection = true
         if !model.env.isSandbox {
             outline.autosaveTableColumns = true
             outline.autosaveName = "TreeColumns"
         }
-        outline.rowHeight = 20
+        outline.rowHeight = 24
         outline.target = self
         outline.doubleAction = #selector(doubleClicked)
         outline.sortDescriptors = [NSSortDescriptor(key: SortColumn.size.rawValue, ascending: false)]
@@ -221,6 +316,7 @@ final class MainWindowController: NSWindowController, NSOutlineViewDataSource, N
     private var session: ScanSession? { model.session }
 
     func stateChanged() {
+        navigation.startup = model.listedVolumes.first { $0.kind == .startupData }
         volumePopup.removeAllItems()
         for volume in model.listedVolumes {
             let gone = model.sessions[volume.id]?.state == .volumeGone
