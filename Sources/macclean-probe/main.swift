@@ -15,6 +15,8 @@ macclean-probe: read-only diagnosis. Nothing here writes, moves or deletes.
   dataless <dir>                            count dataless (not downloaded) files and confirm they stay so
   scan <mount point> [--no-fda]             the app's own scan (Core + getattrlistbulk + NodeStore): time,
                                             memory, gap to df, search and sort timings
+  app-scan <App.app>...                     what uninstalling these apps would find (the uninstaller)
+  orphans [--excluded]                      left-over data of removed apps, and why others were excluded
 """
 
 let args = Array(CommandLine.arguments.dropFirst())
@@ -127,6 +129,9 @@ case "scan":
         for s in suggestions { print("  \(s.title): \(s.items.count) items, \(formatBytes(s.totalBytes)), selected \(s.items.filter(\.isSelected).count)") }
     }
     print(String(format: "final max RSS %d MB", maxRSS() / 1_000_000))
+
+case "app-scan", "orphans":
+    UninstallProbe.run(args)
 
 default:
     print(usage)
