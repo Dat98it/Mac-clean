@@ -64,7 +64,7 @@ Dưới thanh bên là dung lượng trống của ổ khởi động. **Ẩn/hi
   4. Sau khi chuyển, có thể bấm **Xoá vĩnh viễn các mục này…**. Nút này chỉ xoá đúng những mục vừa chuyển, nếu chúng còn trong Thùng rác và không bị thay đổi. Mac Clean **không bao giờ dọn sạch cả Thùng rác**.
 - **Gợi ý dọn dẹp…**: cache của app, DerivedData của Xcode, file hỗ trợ thiết bị, iOS Simulator, bản sao lưu iPhone/iPad, file từ 100 MB trở lên trong Downloads không sửa trong 90 ngày. Mỗi nhóm có giải thích vì sao thường an toàn. **Không mục nào được chọn sẵn**: bạn tick, rồi các mục đó được tick trong cửa sổ chính.
 - **Chi tiết…** giải thích chỗ lệch giữa tổng app thấy được và con số `df` báo (xem phần dưới).
-- Mọi thao tác chuyển, bỏ qua hay xoá đều được ghi vào **nhật ký** `~/Library/Application Support/local.macclean.app/actions.log`. Mở nhanh từ menu bar: **Xem nhật ký thao tác**.
+- Mọi thao tác chuyển, bỏ qua hay xoá đều được ghi vào **nhật ký** `~/Library/Application Support/com.dat98it.MacClean/actions.log`. Mở nhanh từ menu bar: **Xem nhật ký thao tác**.
 
 ## Gỡ ứng dụng
 
