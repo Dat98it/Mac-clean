@@ -14,7 +14,7 @@ App chạy trên **macOS 15 trở lên, máy Apple Silicon**, có icon trên Doc
 
 ## Cài đặt
 
-1. Tải `MacClean-<phiên bản>.dmg`, mở ra, kéo **Mac Clean** vào **Applications**.
+1. Tải `MacClean-<phiên bản>.dmg` từ [trang Releases](https://github.com/Dat98it/Mac-clean/releases/latest), mở ra, kéo **Mac Clean** vào **Applications**.
 2. App được ký ad-hoc, chưa notarize (chưa có tài khoản Apple Developer), nên lần đầu mở macOS sẽ chặn. Khi hộp thoại hiện ra, bấm **Xong** (đừng bấm "Chuyển vào Thùng rác"). Sau đó vào **Cài đặt hệ thống → Quyền riêng tư & Bảo mật**, kéo xuống và bấm **Vẫn mở**, nhập mật khẩu, rồi bấm **Mở**.
    Nếu quen dùng Terminal, cũng có thể gỡ cờ cách ly rồi mở bình thường (chỉ làm với bản tải từ đúng trang Releases của dự án này):
    ```bash
