@@ -192,10 +192,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// Activates the app and puts the window in front. Since macOS 14 activation may be refused
-    /// right after the activation policy changed, so the window is also ordered front on its own:
+    /// Activates the app and puts the window in front, on the desktop (Space) the user is on.
+    /// Since macOS 14 activation may be refused right after the activation policy changed, so the window is also ordered front on its own:
     /// it is then visible even when the app could not become active.
     static func bringForward(_ window: NSWindow) {
+        // Every window follows the user to the desktop (Space) they are on; see MainWindowController.
+        window.collectionBehavior.insert(.moveToActiveSpace)
+        if window.isMiniaturized { window.deminiaturize(nil) }
         NSApp.activate()
         window.orderFrontRegardless()
         window.makeKeyAndOrderFront(nil)
@@ -333,6 +336,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             window.isReleasedWhenClosed = false
             window.contentView = NSHostingView(rootView: SettingsView(model: settingsModel))
             window.center()
+            window.collectionBehavior.insert(.moveToActiveSpace)
             settingsWindow = window
         }
         if let window = settingsWindow { Self.bringForward(window) }
@@ -350,6 +354,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             w.title = L("Cleanup Suggestions")
             w.isReleasedWhenClosed = false
             w.center()
+            w.collectionBehavior.insert(.moveToActiveSpace)
             return w
         }()
         window.contentView = NSHostingView(rootView: SuggestionsView(model: suggestionModel))

@@ -84,6 +84,9 @@ final class MainWindowController: NSWindowController, NSOutlineViewDataSource, N
         window.setContentSize(NSSize(width: 1100, height: 720))
         window.center()
         window.isRestorable = false
+        // Opening the app from another desktop (Space) brings the window there instead of
+        // switching back to the desktop it was first opened on.
+        window.collectionBehavior.insert(.moveToActiveSpace)
         // Sandbox runs write nothing outside the sandbox folder, so they remember no window frames.
         if !model.env.isSandbox { window.setFrameAutosaveName("MainWindow") }
         model.onTreeChanged = { [weak self] touched in self?.treeChanged(touched) }
