@@ -102,7 +102,7 @@ Kết quả gom theo từng app cũ, xếp theo dung lượng. **Không mục n�
 
 ### Những chỗ Mac Clean không bao giờ đụng tới khi gỡ app
 
-Dù kết quả quét nói gì, phần gỡ app cũng từ chối di chuyển: thư mục hệ thống (`/System`, `/usr`...), thư mục home và các thư mục Documents, Desktop, Downloads, Keychains, iCloud Drive, Mail, Messages, chính các thư mục `~/Library/...` và `/Applications`, app của Apple, chính Mac Clean, và mọi thứ nằm ngoài các thư mục nó dọn. Nó cũng không đi theo đường dẫn qua symbolic link, và kiểm tra lại từng mục ngay trước khi di chuyển: mục nào đã bị thay đổi sau lần quét thì bỏ qua.
+Dù kết quả quét nói gì, phần gỡ app cũng từ chối di chuyển: thư mục hệ thống (`/System`, `/usr`...), thư mục home và các thư mục Documents, Desktop, Downloads, Keychains, iCloud Drive, Mail, Messages, chính các thư mục `~/Library/...` và `/Applications`, app có sẵn của macOS và dữ liệu của Apple (app Apple cài từ App Store như TestFlight, Pages thì gỡ được, cùng đúng dữ liệu mang tên của chính app đó), chính Mac Clean, và mọi thứ nằm ngoài các thư mục nó dọn. Nó cũng không đi theo đường dẫn qua symbolic link, và kiểm tra lại từng mục ngay trước khi di chuyển: mục nào đã bị thay đổi sau lần quét thì bỏ qua.
 
 ### Thanh menu và Dock
 
@@ -167,7 +167,7 @@ Chỉ cần Command Line Tools (không cần Xcode), SwiftPM (swift-tools-versio
 ```bash
 swift build
 Scripts/test.sh                       # swift test, tự chạy lại khi gặp lỗi TestingMacros của Command Line Tools
-Scripts/mutate_all.sh                 # phá từng chốt an toàn (51 + 42 đột biến), mọi đột biến phải bị test bắt
+Scripts/mutate_all.sh                 # phá từng chốt an toàn (51 + 48 đột biến), mọi đột biến phải bị test bắt
 Scripts/build_app.sh                  # build/Mac Clean.app (arm64), ký ad-hoc
 Scripts/make_dmg.sh                   # build/MacClean-<phiên bản>.dmg và .sha256
 swift Scripts/make_icon.swift         # tạo lại Resources/AppIcon.icns từ ảnh gốc Resources/AppIcon-source.png

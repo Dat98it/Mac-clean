@@ -36,6 +36,23 @@ import Testing
         #expect(found.values.allSatisfy { $0.preselectedForUninstall })
     }
 
+    @Test func appleAppFindsItsOwnDataButNotAppleVendorData() {
+        let fs = Fixture.fileSystem()
+        let app = Fixture.app("com.apple.TestFlight", names: ["TestFlight"], groups: ["group.com.apple.testflight"])
+        fs.addDir(app.path)
+        fs.addDir(lib + "/Containers/com.apple.TestFlight")
+        fs.addDir(lib + "/Group Containers/group.com.apple.testflight")
+        fs.addFile(lib + "/Preferences/com.apple.finder.plist")
+        fs.addDir(lib + "/Caches/com.apple.Safari")
+        fs.addDir(lib + "/Application Support/Apple/TestFlight")
+        let found = scan(app, fs)
+        #expect(found[lib + "/Containers/com.apple.TestFlight"]?.confidence == .high)
+        #expect(found[lib + "/Group Containers/group.com.apple.testflight"] != nil)
+        #expect(found[lib + "/Preferences/com.apple.finder.plist"] == nil)
+        #expect(found[lib + "/Caches/com.apple.Safari"] == nil)
+        #expect(found[lib + "/Application Support/Apple/TestFlight"] == nil)
+    }
+
     @Test func stringPrefixIsNotAMatch() {
         let fs = Fixture.fileSystem()
         let app = Fixture.app("com.acme.Bar", names: ["Bar"])

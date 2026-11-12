@@ -127,6 +127,54 @@ import Testing
     @Test func missingPathIsDenied() {
         #expect(denied(lib + "/Caches/nothing", Fixture.fileSystem()))
     }
+
+    /// TestFlight from the App Store: its own Apple-named data goes with it, nothing else of Apple's.
+    func testFlight(_ fs: FakeFileSystem, id: String? = "com.apple.TestFlight") -> SafetyPolicy {
+        var policy = Fixture.policy(fs)
+        policy.appStoreAppleID = id
+        return policy
+    }
+
+    var testFlightData: [String] {
+        [lib + "/Containers/com.apple.TestFlight", lib + "/Containers/com.apple.TestFlight.ServiceExtension",
+         lib + "/Group Containers/group.com.apple.testflight", lib + "/Application Scripts/com.apple.TestFlight",
+         lib + "/Preferences/com.apple.TestFlight.plist"]
+    }
+
+    @Test func appStoreAppleAppDataIsAllowedForThatAppOnly() {
+        let fs = Fixture.fileSystem()
+        for path in testFlightData { path.hasSuffix(".plist") ? fs.addFile(path) : fs.addDir(path) }
+        fs.addFile(lib + "/Preferences/com.apple.finder.plist")
+        fs.addDir(lib + "/Group Containers/group.com.apple.notes")
+        fs.addDir(lib + "/Containers/com.apple.TestFlightHelper")
+        fs.addDir(lib + "/Containers/com.apple")
+        for path in testFlightData {
+            #expect(testFlight(fs).check(path) == .allowed, "\(path)")
+            #expect(Fixture.policy(fs).check(path) == .denied("Apple component"), "\(path)")
+        }
+        for path in [lib + "/Preferences/com.apple.finder.plist", lib + "/Group Containers/group.com.apple.notes",
+                     lib + "/Containers/com.apple.TestFlightHelper", lib + "/Containers/com.apple"] {
+            #expect(testFlight(fs).check(path) == .denied("Apple component"), "\(path)")
+        }
+    }
+
+    @Test func appStoreAppleIDTooShortOrNotAppleAllowsNothing() {
+        let fs = Fixture.fileSystem()
+        fs.addFile(lib + "/Preferences/com.apple.finder.plist")
+        fs.addDir(lib + "/Containers/com.apple.TestFlight")
+        for id in ["com.apple", "group.com.apple", "com.foo.Bar", ""] {
+            #expect(testFlight(fs, id: id).check(lib + "/Preferences/com.apple.finder.plist") == .denied("Apple component"), "\(id)")
+            #expect(testFlight(fs, id: id).check(lib + "/Containers/com.apple.TestFlight") == .denied("Apple component"), "\(id)")
+        }
+    }
+
+    @Test func appStoreAppleDataStillNeedsTheOtherLayers() {
+        let fs = Fixture.fileSystem()
+        fs.addDir(home + "/Documents/com.apple.TestFlight")
+        fs.addDir("/System/Library/com.apple.TestFlight")
+        #expect(testFlight(fs).check(home + "/Documents/com.apple.TestFlight") != .allowed)
+        #expect(testFlight(fs).check("/System/Library/com.apple.TestFlight") != .allowed)
+    }
 }
 
 @Suite struct DeletionPlanTests {

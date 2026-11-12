@@ -28,6 +28,8 @@ struct RowGroup: Identifiable, Equatable {
 struct Confirmation: Identifiable {
     let id = UUID()
     var plan: DeletionPlan
+    /// The policy the plan was checked with; the removal checks every item again with the same one.
+    var policy: SafetyPolicy
     var findings: [Finding]
     var runningApps: [String]
     var userDataCount: Int
@@ -133,7 +135,7 @@ final class UninstallModel: ObservableObject {
             message = L("To remove Mac Clean, use “Uninstall Mac Clean…” in its menu.")
             return
         }
-        if BundleIDs.isApple(identity.bundleID) || path.hasPrefix("/System/") {
+        if BundleIDs.isBuiltInApp(bundleID: identity.bundleID, path: path, hasAppStoreReceipt: identity.hasAppStoreReceipt) {
             message = L("Apps that come with macOS can't be removed.")
             return
         }
@@ -398,14 +400,16 @@ final class UninstallModel: ObservableObject {
     /// Builds the plan from the ticked, visible rows and asks for confirmation.
     func requestRemoval() {
         let source = mode == .uninstall ? findings : orphanFindings
-        let plan = DeletionPlan.make(findings: source, selected: selectedVisiblePaths, sizes: sizes, policy: env.policy)
+        var policy = env.policy
+        if mode == .uninstall { policy.appStoreAppleID = target?.appStoreAppleID }
+        let plan = DeletionPlan.make(findings: source, selected: selectedVisiblePaths, sizes: sizes, policy: policy)
         var running: [String] = []
         if mode == .uninstall, let target {
             running = RunningApps().running(among: [target.bundleID] + target.nestedBundleIDs)
         }
         let plannedPaths = Set(plan.items.map(\.displayPath))
         let planned = source.filter { plannedPaths.contains($0.path) }
-        confirmation = Confirmation(plan: plan, findings: planned, runningApps: running,
+        confirmation = Confirmation(plan: plan, policy: policy, findings: planned, runningApps: running,
                                     userDataCount: planned.filter { $0.kind.mayHoldUserData }.count,
                                     launchAgentCount: planned.filter { $0.kind == .launchItem }.count)
     }
@@ -427,9 +431,10 @@ final class UninstallModel: ObservableObject {
         confirmation = nil
         let env = self.env
         let plan = c.plan
+        let policy = c.policy
         Task { [weak self] in
             let outcomes = await Task.detached {
-                Remover(policy: env.policy, trasher: env.trasher, admin: env.admin, launchAgents: env.launchAgents,
+                Remover(policy: policy, trasher: env.trasher, admin: env.admin, launchAgents: env.launchAgents,
                         log: env.log, trashFolder: env.trashFolder).execute(plan, includeAdmin: true)
             }.value
             guard let self else { return }

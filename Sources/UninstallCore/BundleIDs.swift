@@ -69,6 +69,14 @@ public enum BundleIDs {
         return parts.joined(separator: ".")
     }
 
+    /// Apps that come with macOS and are never uninstalled: anything on the system volume
+    /// (`path` is the canonical path, so Safari in /Applications counts), and Apple apps that were
+    /// not installed from the App Store. TestFlight, Pages... from the App Store can be removed.
+    public static func isBuiltInApp(bundleID: String, path: String, hasAppStoreReceipt: Bool) -> Bool {
+        if path.hasPrefix("/System/") { return true }
+        return isApple(bundleID) && !hasAppStoreReceipt
+    }
+
     /// Apple's own identifiers and groups. Never offered for removal.
     public static func isApple(_ id: String) -> Bool {
         let l = stripGroupPrefix(id).lowercased()

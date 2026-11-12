@@ -158,7 +158,7 @@ public struct Scanner: Sendable {
         // Same vendor (`com.docker.vmnetd` for `com.docker.docker`), only when no other app of
         // that vendor is installed: otherwise it may well be theirs, and is not shown at all.
         if otherID == nil, BundleIDs.looksLikeBundleID(id), let vendor = BundleIDs.vendorPrefix(of: id),
-           vendor == app.vendorPrefix, !BundleIDs.sharedNamespaces.contains(vendor),
+           vendor == app.vendorPrefix, !BundleIDs.sharedNamespaces.contains(vendor), !BundleIDs.isApple(vendor),
            !others.contains(where: { $0.vendorPrefix == vendor }) {
             if let team, let appTeam = app.teamID, team.team != appTeam { return nil }
             return Match(confidence: .medium, reason: .sameVendor(vendor))
@@ -197,6 +197,8 @@ public struct Scanner: Sendable {
 
     /// `com.google.Chrome` → `google`.
     func vendorWord(_ app: AppIdentity) -> String? {
+        // Apple's folders (`Application Support/Apple`) are never one app's.
+        if BundleIDs.isApple(app.bundleID) { return nil }
         let parts = app.bundleID.lowercased().split(separator: ".")
         return parts.count >= 3 ? String(parts[1]) : nil
     }

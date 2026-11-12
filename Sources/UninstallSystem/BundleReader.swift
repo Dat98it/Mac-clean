@@ -19,7 +19,8 @@ public enum BundleReader {
         return AppIdentity(bundleID: bundleID, path: path, names: names,
                            executableName: info["CFBundleExecutable"] as? String,
                            teamID: signing.team, appGroups: signing.groups,
-                           nestedBundleIDs: nestedBundleIDs(url))
+                           nestedBundleIDs: nestedBundleIDs(url),
+                           hasAppStoreReceipt: FileManager.default.fileExists(atPath: url.appendingPathComponent("Contents/_MASReceipt/receipt").path))
     }
 
     /// macOS bundles keep Info.plist in `Contents/`; iPhone/iPad apps (and their extensions) keep it

@@ -18,6 +18,10 @@ public struct SafetyPolicy: Sendable {
     /// This app's own bundle and identifier: never removed through the normal flow.
     public var selfBundlePath: String?
     public var selfBundleID: String?
+    /// Set while uninstalling an Apple app installed from the App Store (`AppIdentity.appStoreAppleID`):
+    /// data named after that app (`com.apple.TestFlight`, `com.apple.TestFlight.*`,
+    /// `group.com.apple.TestFlight...`) is its own. Every other Apple name stays denied.
+    public var appStoreAppleID: String?
 
     public init(fileSystem: FileSystem, home: String, dataRoots: [String], appRoots: [String],
                 selfBundlePath: String? = nil, selfBundleID: String? = nil) {
@@ -71,7 +75,8 @@ public struct SafetyPolicy: Sendable {
 
         // 4. Apple's own data and this app.
         let name = Paths.lastComponent(path)
-        if BundleIDs.isApple(BundleIDs.stripFileSuffix(name)) || OrphanFinder.isAppleComponent(BundleIDs.stripFileSuffix(name)) {
+        let stripped = BundleIDs.stripFileSuffix(name)
+        if BundleIDs.isApple(stripped) || OrphanFinder.isAppleComponent(stripped), !ownedByAppStoreAppleApp(stripped) {
             return .denied("Apple component")
         }
         if let selfBundlePath, path == selfBundlePath || Self.isInside(path, selfBundlePath) || Self.isInside(selfBundlePath, path) {
@@ -96,6 +101,13 @@ public struct SafetyPolicy: Sendable {
             return .allowed
         }
         return .denied("outside the folders Mac Clean cleans")
+    }
+
+    /// The name belongs to the Apple app being uninstalled: its bundle ID, a component of it, or
+    /// that with a `group.` prefix. Never for `com.apple` itself or anything shorter.
+    func ownedByAppStoreAppleApp(_ name: String) -> Bool {
+        guard let id = appStoreAppleID, id.split(separator: ".").count >= 3 else { return false }
+        return BundleIDs.isComponent(BundleIDs.stripGroupPrefix(name), of: id)
     }
 
     /// `path` is strictly below `folder`.

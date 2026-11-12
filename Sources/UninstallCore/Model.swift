@@ -85,9 +85,12 @@ public struct AppIdentity: Sendable, Hashable {
     public var appGroups: [String]
     /// Identifiers of bundles inside this one: helpers, login items, XPC services, extensions.
     public var nestedBundleIDs: [String]
+    /// Installed from the Mac App Store (the bundle holds `_MASReceipt/receipt`).
+    public var hasAppStoreReceipt: Bool
 
     public init(bundleID: String, path: String, names: [String], executableName: String? = nil,
-                teamID: String? = nil, appGroups: [String] = [], nestedBundleIDs: [String] = []) {
+                teamID: String? = nil, appGroups: [String] = [], nestedBundleIDs: [String] = [],
+                hasAppStoreReceipt: Bool = false) {
         self.bundleID = bundleID
         self.path = path
         self.names = names
@@ -95,6 +98,13 @@ public struct AppIdentity: Sendable, Hashable {
         self.teamID = teamID
         self.appGroups = appGroups
         self.nestedBundleIDs = nestedBundleIDs
+        self.hasAppStoreReceipt = hasAppStoreReceipt
+    }
+
+    /// Set only for an Apple app the user installed from the App Store (TestFlight, Pages...):
+    /// its data is named after Apple, and `SafetyPolicy.appStoreAppleID` lets that data go with it.
+    public var appStoreAppleID: String? {
+        hasAppStoreReceipt && BundleIDs.isApple(bundleID) ? bundleID : nil
     }
 
     /// The vendor part of the identifier: `com.microsoft` for `com.microsoft.Excel`.

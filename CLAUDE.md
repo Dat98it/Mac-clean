@@ -29,7 +29,7 @@ Scripts/test.sh                        # swift test (cả hai bộ), tự chạy
 Scripts/test.sh --filter UninstallCoreTests
 Scripts/mutate_all.sh [tên]            # phá từng chốt an toàn của cả hai bộ; mọi đột biến phải bị bắt
 python3 -I Scripts/mutate.py [tên]     # chỉ khám phá ổ đĩa (51 đột biến, KILLED)
-Scripts/mutate_uninstall.sh [tên]      # chỉ gỡ app (42 đột biến, caught)
+Scripts/mutate_uninstall.sh [tên]      # chỉ gỡ app (48 đột biến, caught)
 Scripts/build_app.sh [release|debug]   # build/Mac Clean.app, arm64, ký ad-hoc
 Scripts/make_dmg.sh                    # build/MacClean-<version>.dmg và .sha256
 swift Scripts/make_icon.swift          # Resources/AppIcon.icns từ ảnh gốc Resources/AppIcon-source.png
@@ -91,6 +91,7 @@ Gỡ app và dữ liệu sót:
 - `URL.resolvingSymlinksInPath()` **cắt bỏ `/private`** (`/private/tmp` thành `/tmp`), làm đường dẫn sai hơn. Dùng `FileSystem.canonicalPath` (realpath).
 - Kéo thả có thể mang *file reference URL* (`file:///.file/id=…`), không có đuôi `.app`. Đổi bằng `(url as NSURL).filePathURL` trước khi kiểm tra.
 - **Mục thuộc người khác (thường là root) phải đi đường quản trị.** App App Store (`root:wheel`, 755) không chuyển được vào Thùng rác bằng `FileManager.trashItem` (lỗi 513), dù `/Applications` cho nhóm admin ghi: chuyển một thư mục cần quyền ghi trên chính nó. `Ownership.domain` chuyển các mục này sang `.system`. Sau khi chuyển bằng quyền quản trị, mục trong Thùng rác vẫn thuộc root, nên xoá vĩnh viễn cũng phải đi đường quản trị (`AdminRemoving`, `AdminScript.buildRemoval`). `PermanentDeleter` kiểm tra mục (nằm ngay trong Thùng rác, đúng inode) **trước** khi giao cho root.
+- **App của Apple cài từ App Store gỡ được** (TestFlight, Pages, Numbers, Keynote...). "App có sẵn của macOS" là app nằm trên volume hệ thống (đường dẫn thật dưới `/System/`, kể cả Safari trong `/Applications` trỏ vào cryptex) hoặc app `com.apple.*` không có `Contents/_MASReceipt/receipt` (`BundleIDs.isBuiltInApp`). Dữ liệu của các app này đều mang tên `com.apple.*`, nên khi gỡ, `SafetyPolicy.appStoreAppleID` mở đúng tên của chính app (bundle ID, thành phần của nó, kèm tiền tố `group.`). Mọi tên Apple khác vẫn bị từ chối. Bộ quét không ghép "cùng nhà phát triển" và thư mục `Apple` cho app Apple.
 - App iPad trên Apple Silicon là bundle bọc: thật ra nằm ở `X.app/Wrapper/X.app`, Info.plist không nằm trong `Contents/`.
 - Kéo file tới mép trên màn hình (vùng thanh menu) bằng sự kiện giả lập sẽ mở Mission Control, cả khi thả vào vùng trống của thanh menu. Khi drag tới được icon, app mở luôn trang gỡ app có ô thả.
 - Luật trong `OrphanFinder` được chỉnh trên một máy duy nhất. Đổi luật thì chạy `macclean-probe orphans --excluded` và xem lại từng nhóm.

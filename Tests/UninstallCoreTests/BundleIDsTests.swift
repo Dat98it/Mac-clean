@@ -2,6 +2,28 @@ import Testing
 @testable import UninstallCore
 
 @Suite struct BundleIDsTests {
+    @Test func builtInApps() {
+        // From the App Store, on the Data volume: the user's, even though Apple made it.
+        #expect(!BundleIDs.isBuiltInApp(bundleID: "com.apple.TestFlight", path: "/Applications/TestFlight.app", hasAppStoreReceipt: true))
+        #expect(!BundleIDs.isBuiltInApp(bundleID: "com.acme.Foo", path: "/Applications/Foo.app", hasAppStoreReceipt: false))
+        // Apple apps without a receipt, and anything on the system volume, come with macOS.
+        #expect(BundleIDs.isBuiltInApp(bundleID: "com.apple.Notes", path: "/Applications/Notes.app", hasAppStoreReceipt: false))
+        #expect(BundleIDs.isBuiltInApp(bundleID: "com.apple.Notes", path: "/System/Applications/Notes.app", hasAppStoreReceipt: true))
+        #expect(BundleIDs.isBuiltInApp(bundleID: "com.apple.Safari",
+                                       path: "/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app",
+                                       hasAppStoreReceipt: true))
+        #expect(BundleIDs.isBuiltInApp(bundleID: "com.acme.Foo", path: "/System/Applications/Foo.app", hasAppStoreReceipt: true))
+    }
+
+    @Test func appStoreAppleIDOnlyForAppleAppsFromTheAppStore() {
+        #expect(AppIdentity(bundleID: "com.apple.TestFlight", path: "/Applications/TestFlight.app", names: ["TestFlight"],
+                            hasAppStoreReceipt: true).appStoreAppleID == "com.apple.TestFlight")
+        #expect(AppIdentity(bundleID: "com.apple.TestFlight", path: "/Applications/TestFlight.app", names: ["TestFlight"],
+                            hasAppStoreReceipt: false).appStoreAppleID == nil)
+        #expect(AppIdentity(bundleID: "com.acme.Foo", path: "/Applications/Foo.app", names: ["Foo"],
+                            hasAppStoreReceipt: true).appStoreAppleID == nil)
+    }
+
     @Test func componentNeedsDotBoundary() {
         #expect(BundleIDs.isComponent("com.foo.Bar.helper", of: "com.foo.bar"))
         #expect(!BundleIDs.isComponent("com.foo.Barcode", of: "com.foo.Bar"))
